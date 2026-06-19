@@ -91,7 +91,21 @@ def solve_nurse_scheduling(nurses_per_day_list, base_staff_data, additional_nurs
             # Schedule row
             row = [nurse_type, nurse_name]
             for d in days:
-                row.append("X" if solver.Value(shifts[(n, d)]) else "-")
+                if solver.Value(shifts[(n, d)]):
+                    # Find which nurse this is for the day to assign a role
+                    day_nurses = [i for i in nurses if solver.Value(shifts[(i, d)])]
+                    position = day_nurses.index(n)
+                    
+                    if position == 0:
+                        role = "Float"
+                    elif position == 1:
+                        role = "Lunch"
+                    else:
+                        room_num = ((position - 2) // 2) + 1
+                        role = f"Room {room_num}"
+                    row.append(role)
+                else:
+                    row.append("-")
             row.append(actual_days)
             schedule_rows.append(row)
             
