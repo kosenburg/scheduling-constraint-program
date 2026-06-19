@@ -2,9 +2,12 @@ from ortools.sat.python import cp_model
 import pandas as pd
 import json
 
-def export_to_excel(nurse_data, tech_data, filename="staff_schedule.xlsx"):
+def export_to_excel(nurse_data, tech_data, req_df, filename="staff_schedule.xlsx"):
     """Exports nurse and tech data to an Excel file with separate sheets."""
     with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+        # Requirements Sheet
+        req_df.to_excel(writer, sheet_name='Requirements', index=False)
+        
         # Nurses Sheet
         nurse_data['schedule'].to_excel(writer, sheet_name='Nurse Schedule', index=False)
         
@@ -127,13 +130,31 @@ if __name__ == '__main__':
     try:
         with open('staff.json', 'r') as f:
             staff_data = json.load(f)
-    except FileNotFoundError:
-        print("Error: staff.json not found.")
+        with open('schedule-parameters.json', 'r') as f:
+            schedule_params = json.load(f)
+    except FileNotFoundError as e:
+        print(f"Error: {e.filename} not found.")
         exit(1)
 
-    nurse_requirements = [6, 8, 8, 8, 8]
-    tech_requirements = [4, 6, 6, 6, 6]
+    # Calculate requirements per day from schedule-parameters.json
+    nurse_requirements = []
+    tech_requirements = []
     
+    for day_config in schedule_params["days"]:
+        # Calculate Nurse requirements per day
+        # Formula: (OR rooms * 2) + float nurses + lunch relief nurses
+        daily_nurse_req = (day_config["num_or_rooms"] * 2) + \
+                          day_config["num_float_nurses"] + \
+                          day_config["num_lunch_relief_nurses"]
+        nurse_requirements.append(daily_nurse_req)
+        # Calculate Tech requirements per day
+        # Formula: (OR rooms * 1) + (scope rooms * 2) + (1 if OR rooms > 3 else 0)
+        extra_tech = 1 if day_config["num_or_rooms"] > 3 else 0
+        daily_tech_req = (day_config["num_or_rooms"] * 1) + \
+                         (day_config["num_scope_rooms"] * 2) + \
+                         extra_tech
+        tech_requirements.append(daily_tech_req)
+
     # Solve for Nurses
     nurse_added = 0
     nurse_results = None
@@ -158,6 +179,18 @@ if __name__ == '__main__':
         print("no solution possible for techs")
         exit(1)
 
+    # Display requirements used
+    print("Calculated Daily Requirements:")
+    req_df = pd.DataFrame({
+        "Day": [f"Day {i+1}" for i in range(len(nurse_requirements))],
+        "OR Rooms": [d["num_or_rooms"] for d in schedule_params["days"]],
+        "Scope Rooms": [d["num_scope_rooms"] for d in schedule_params["days"]],
+        "Nurse Req": nurse_requirements,
+        "Tech Req": tech_requirements
+    })
+    print(req_df.to_string(index=False))
+    print("")
+
     # Display results
     print(f"Nurse Solution found with {nurse_added} extra nurses.")
     print(nurse_results["schedule"].to_string(index=False))
@@ -168,4 +201,4 @@ if __name__ == '__main__':
     print(nurse_results["comparison"].to_string(index=False))
     print(tech_results["comparison"].to_string(index=False))
     
-    export_to_excel(nurse_results, tech_results)
+    export_to_excel(nurse_results, tech_results, req_df)
