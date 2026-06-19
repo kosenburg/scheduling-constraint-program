@@ -1,5 +1,20 @@
 from ortools.sat.python import cp_model
 
+import pandas as pd
+
+def export_to_excel(schedule_rows, summary_rows, filename="nurse_schedule.xlsx"):
+    """Exports data to a standard Excel file using pandas."""
+    # Create DataFrames
+    df_schedule = pd.DataFrame(schedule_rows[1:], columns=schedule_rows[0])
+    df_summary = pd.DataFrame(summary_rows[1:], columns=summary_rows[0])
+    
+    # Export to Excel with multiple sheets
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+        df_schedule.to_excel(writer, sheet_name='Schedule', index=False)
+        df_summary.to_excel(writer, sheet_name='Summary', index=False)
+        
+    print(f"Results exported to {filename}")
+
 def solve_nurse_scheduling(additional_nurses_count=0):
     model = cp_model.CpModel()
 
@@ -53,28 +68,44 @@ def solve_nurse_scheduling(additional_nurses_count=0):
 
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print(f"Solution found with {additional_nurses_count} additional nurses:\n")
-        header = "          " + " ".join([f"Day {d+1}" for d in days])
-        print(header)
+        
+        # Prepare data for export
+        schedule_data = []
+        header = ["Nurse", "Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Total"]
+        schedule_data.append(header)
+        
+        print("          " + " ".join([f"Day {d+1}" for d in days]))
         for n in nurses:
             is_additional = n >= base_num_nurses
-            nurse_label = f"Nurse {n+1:2}" if not is_additional else f"Extra {n-base_num_nurses+1:2}"
-            nurse_name = f"{nurse_label} ({nurse_work_days[n]}d)"
-            row = []
+            nurse_label = f"Nurse {n+1}" if not is_additional else f"Extra {n-base_num_nurses+1}"
+            nurse_display = f"{nurse_label} ({nurse_work_days[n]}d)"
+            
+            row_display = []
+            excel_row = [nurse_display]
             actual_days = 0
             for d in days:
                 if solver.Value(shifts[(n, d)]):
-                    row.append("  X   ")
+                    row_display.append("  X   ")
+                    excel_row.append("X")
                     actual_days += 1
                 else:
-                    row.append("  -   ")
-            print(f"{nurse_name}: {' '.join(row)} (Total: {actual_days})")
+                    row_display.append("  -   ")
+                    excel_row.append("-")
+            excel_row.append(actual_days)
+            schedule_data.append(excel_row)
+            print(f"{nurse_display:20}: {' '.join(row_display)} (Total: {actual_days})")
         
         print("\nVerification:")
+        summary_data = [["Item", "Value"]]
         for d in days:
             count = sum(solver.Value(shifts[(n, d)]) for n in nurses)
             print(f"Day {d+1}: {count} nurses")
+            summary_data.append([f"Day {d+1} Staffing", count])
         
         print(f"\nFinal count of new nurses required: {additional_nurses_count}")
+        summary_data.append(["Additional Nurses Added", additional_nurses_count])
+        
+        export_to_excel(schedule_data, summary_data)
         return True
     else:
         return False
