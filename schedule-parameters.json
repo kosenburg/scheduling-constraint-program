@@ -17,7 +17,7 @@
         {
             "day": 3,
             "num_or_rooms": 3,
-            "num_scope_rooms": 2,
+            "num_scope_rooms": 1,
             "num_float_nurses": 1,
             "num_lunch_relief_nurses": 1
         },

@@ -207,10 +207,10 @@ def calculate_requirements(schedule_params):
         nurse_requirements.append(daily_nurse_req)
 
         num_or_rooms = day_config["num_or_rooms"]
-        has_extra_tech = 1 if num_or_rooms > 3 else 0
+        # Updated constraint: always want a dedicated floating tech (1)
+        # and no additional constraint on float tech even if more than 3 rooms.
         daily_tech_req = (num_or_rooms * 1) + \
-                         (day_config["num_scope_rooms"] * 2) + \
-                         has_extra_tech
+                         (day_config["num_scope_rooms"] * 2) + 1
         tech_requirements.append(daily_tech_req)
     return nurse_requirements, tech_requirements
 
