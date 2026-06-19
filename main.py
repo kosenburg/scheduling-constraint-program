@@ -15,12 +15,12 @@ def export_to_excel(schedule_rows, summary_rows, filename="nurse_schedule.xlsx")
         
     print(f"Results exported to {filename}")
 
-def solve_nurse_scheduling(additional_nurses_count=0):
+def solve_nurse_scheduling(nurses_per_day_list, additional_nurses_count=0):
     model = cp_model.CpModel()
 
     # Data
     base_num_nurses = 11
-    num_days = 5
+    num_days = len(nurses_per_day_list)
     
     # Base Nurse constraints: (number of nurses, days they work)
     # 8 nurses work 3 days
@@ -37,18 +37,15 @@ def solve_nurse_scheduling(additional_nurses_count=0):
     nurses = range(num_nurses)
     days = range(num_days)
     
-    # Requirement: 8 nurses per day
-    nurses_per_day = 8
-
     # Variables: shifts[n, d] is true if nurse n works on day d
     shifts = {}
     for n in nurses:
         for d in days:
             shifts[(n, d)] = model.NewBoolVar(f'shift_n{n}_d{d}')
 
-    # Constraint 1: Each day must have exactly 8 nurses
+    # Constraint 1: Each day must have the required number of nurses
     for d in days:
-        model.Add(sum(shifts[(n, d)] for n in nurses) == nurses_per_day)
+        model.Add(sum(shifts[(n, d)] for n in nurses) == nurses_per_day_list[d])
 
     # Constraint 2: Each nurse works their specified number of days
     for n in nurses:
@@ -99,8 +96,9 @@ def solve_nurse_scheduling(additional_nurses_count=0):
         summary_data = [["Item", "Value"]]
         for d in days:
             count = sum(solver.Value(shifts[(n, d)]) for n in nurses)
-            print(f"Day {d+1}: {count} nurses")
+            print(f"Day {d+1}: {count} nurses (Required: {nurses_per_day_list[d]})")
             summary_data.append([f"Day {d+1} Staffing", count])
+            summary_data.append([f"Day {d+1} Required", nurses_per_day_list[d]])
         
         print(f"\nFinal count of new nurses required: {additional_nurses_count}")
         summary_data.append(["Additional Nurses Added", additional_nurses_count])
@@ -111,8 +109,11 @@ def solve_nurse_scheduling(additional_nurses_count=0):
         return False
 
 if __name__ == '__main__':
+    # Example requirement: Day 1 needs 6 nurses, other 4 days need 8 nurses
+    requirements = [6, 8, 8, 8, 8]
+    
     added = 0
-    while not solve_nurse_scheduling(added):
+    while not solve_nurse_scheduling(requirements, added):
         print(f"Attempt with {added} additional nurses failed...")
         added += 1
         # Safety break to avoid infinite loop if something is logically wrong
