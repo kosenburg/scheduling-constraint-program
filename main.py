@@ -8,44 +8,92 @@ from ortools.sat.python import cp_model
 import pandas as pd
 
 
+from openpyxl.styles import Alignment, PatternFill, Font
+
+
 def export_to_excel(nurse_data, tech_data, requirements_df, filename="staff_schedule.xlsx"):
-    """Exports nurse and tech data to an Excel file with separate sheets."""
+    """Exports nurse and tech data to an Excel file."""
+    
+    def write_table_on_sheet(ws, df, title, start_r, writer, sheet_name, color='CCE5FF'):
+        ws.merge_cells(start_row=start_r, start_column=1, end_row=start_r, end_column=df.shape[1])
+        cell = ws.cell(row=start_r, column=1)
+        cell.value = title
+        cell.alignment = Alignment(horizontal='center')
+        cell.fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+        cell.font = Font(bold=True)
+        df.to_excel(writer, sheet_name=sheet_name, index=False, startrow=start_r)
+        return start_r + len(df) + 3
+
     with pd.ExcelWriter(filename, engine='openpyxl') as writer:
         # Requirements Sheet
-        requirements_df.to_excel(writer, sheet_name='Requirements', index=False)
+        requirements_df.to_excel(writer, sheet_name='Requirements', index=False, startrow=1)
+        ws_req = writer.sheets['Requirements']
+        ws_req.merge_cells(start_row=1, start_column=1, end_row=1, end_column=requirements_df.shape[1])
+        title_cell = ws_req.cell(row=1, column=1)
+        title_cell.value = "Daily Staffing Requirements"
+        title_cell.alignment = Alignment(horizontal='center')
+        title_cell.fill = PatternFill(start_color='CCE5FF', end_color='CCE5FF', fill_type='solid')
+        title_cell.font = Font(bold=True)
 
-        # Nurses Sheet
-        nurse_data['schedule'].to_excel(writer, sheet_name='Nurse Schedule', index=False)
+        # Staff Schedule Sheet
+        ws_sched = writer.book.create_sheet('Staff Schedule')
+        writer.sheets['Staff Schedule'] = ws_sched
+        curr_row_sched = 1
 
-        # Techs Sheet
-        tech_data['schedule'].to_excel(writer, sheet_name='Tech Schedule', index=False)
+        # Nurse Schedule Table
+        curr_row_sched = write_table_on_sheet(ws_sched, nurse_data['schedule'], "Nurse Shift Assignments", curr_row_sched, writer, 'Staff Schedule')
+
+        # Tech Schedule Table
+        write_table_on_sheet(ws_sched, tech_data['schedule'], "Tech Shift Assignments", curr_row_sched, writer, 'Staff Schedule')
 
         # Summary Sheet
+        ws_sum = writer.book.create_sheet('Summary')
+        writer.sheets['Summary'] = ws_sum
+        curr_row = 1
+
+        # New Hires Summary
+        purple_fill = PatternFill(start_color='E5CCFF', end_color='E5CCFF', fill_type='solid')
+        
+        ws_sum.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=2)
+        title_cell = ws_sum.cell(row=curr_row, column=1)
+        title_cell.value = "Required Hires for Schedule"
+        title_cell.alignment = Alignment(horizontal='center')
+        title_cell.fill = purple_fill
+        title_cell.font = Font(bold=True)
+        curr_row += 1
+        
+        ws_sum.cell(row=curr_row, column=1).value = "New Nurse Hires"
+        ws_sum.cell(row=curr_row, column=1).fill = purple_fill
+        ws_sum.cell(row=curr_row, column=2).value = nurse_data['additional_count']
+        ws_sum.cell(row=curr_row, column=2).fill = purple_fill
+        
+        ws_sum.cell(row=curr_row + 1, column=1).value = "New Tech Hires"
+        ws_sum.cell(row=curr_row + 1, column=1).fill = purple_fill
+        ws_sum.cell(row=curr_row + 1, column=2).value = tech_data['additional_count']
+        ws_sum.cell(row=curr_row + 1, column=2).fill = purple_fill
+        
+        curr_row += 4
+        
         # Nurse Comparison
-        nurse_data['comparison'].to_excel(writer, sheet_name='Summary', index=False, startrow=0)
-        start_row = len(nurse_data['comparison']) + 2
+        curr_row = write_table_on_sheet(ws_sum, nurse_data['comparison'], "Nurse Work Day Comparison", curr_row, writer, 'Summary')
 
         # Tech Comparison
-        tech_data['comparison'].to_excel(
-            writer, sheet_name='Summary', index=False, startrow=start_row
-        )
-        start_row += len(tech_data['comparison']) + 2
+        curr_row = write_table_on_sheet(ws_sum, tech_data['comparison'], "Tech Work Day Comparison", curr_row, writer, 'Summary')
 
         # Extra Hires (Combined)
         extra_hires = pd.concat(
             [nurse_data['extra_hires'], tech_data['extra_hires']], ignore_index=True
         )
-        extra_hires.to_excel(writer, sheet_name='Summary', index=False, startrow=start_row)
-        start_row += len(extra_hires) + 2
+        curr_row = write_table_on_sheet(ws_sum, extra_hires, "Extra Staff Hires", curr_row, writer, 'Summary')
 
         # Daily Staffing (Combined)
         nurse_summary = nurse_data['summary'].copy()
-        nurse_summary.columns = ["Day", "Req Nurses", "Act Nurses"]
+        nurse_summary.columns = ["Day", "Required Nurses", "Scheduled Nurses"]
         tech_summary = tech_data['summary'].copy()
-        tech_summary.columns = ["Day", "Req Techs", "Act Techs"]
+        tech_summary.columns = ["Day", "Required Techs", "Scheduled Techs"]
 
         combined_summary = pd.merge(nurse_summary, tech_summary, on="Day")
-        combined_summary.to_excel(writer, sheet_name='Summary', index=False, startrow=start_row)
+        write_table_on_sheet(ws_sum, combined_summary, "Daily Staffing Totals", curr_row, writer, 'Summary')
 
     print(f"Results exported to {filename}")
 
@@ -181,10 +229,10 @@ def process_solver_results(solver_data):
         "schedule": pd.DataFrame(schedule_rows, columns=schedule_cols),
         "comparison": pd.DataFrame(comparison_rows,
                                    columns=["Staff Type", "Type", "Name",
-                                            "Req Days", "Sched Days"]),
+                                            "Required Days", "Scheduled Days"]),
         "extra_hires": pd.DataFrame(extra_hires_rows,
-                                    columns=[f"Ex {staff_type} Name", "Sched Days"]),
-        "summary": pd.DataFrame(summary_rows, columns=["Day", "Required", "Actual"]),
+                                    columns=[f"Extra {staff_type} Name", "Scheduled Days"]),
+        "summary": pd.DataFrame(summary_rows, columns=["Day", "Required", "Scheduled"]),
         "additional_count": solver_data["additional_count"]
     }
 
@@ -286,20 +334,24 @@ def main():
         "Day": [f"Day {i + 1}" for i in range(len(nurse_requirements))],
         "OR Rooms": [d["num_or_rooms"] for d in schedule_params["days"]],
         "Scope Rooms": [d["num_scope_rooms"] for d in schedule_params["days"]],
-        "Nurse Req": nurse_requirements,
-        "Tech Req": tech_requirements
+        "Nurse Required": nurse_requirements,
+        "Tech Required": tech_requirements
     })
     print(requirements_summary_df.to_string(index=False))
     print("")
 
     # Display results
-    print(f"Nurse Solution found with {nurse_added} extra nurses.")
+    print(f"\nNurse Solution found with {nurse_added} extra nurses.")
+    print("Nurse Schedule:")
     print(nurse_results["schedule"].to_string(index=False))
     print(f"\nTech Solution found with {tech_added} extra techs.")
+    print("Tech Schedule:")
     print(tech_results["schedule"].to_string(index=False))
 
     print("\nStaff Work Comparison:")
+    print("Nurse Comparison:")
     print(nurse_results["comparison"].to_string(index=False))
+    print("\nTech Comparison:")
     print(tech_results["comparison"].to_string(index=False))
 
     export_to_excel(nurse_results, tech_results, requirements_summary_df)
