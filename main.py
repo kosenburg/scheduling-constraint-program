@@ -28,29 +28,9 @@ def solve_nurse_scheduling():
     for d in days:
         model.Add(sum(shifts[(n, d)] for n in nurses) == nurses_per_day)
 
-    # Constraint 2: Each nurse works their specified number of days
-    # Note: 8*3 + 2*4 + 1*2 = 34. Total shifts needed = 8*5 = 40.
-    # We will treat the requested days as minimums and minimize total extra shifts.
-    # We also add a penalty for nurses working too many days to distribute extra shifts.
-    nurse_total_shifts = []
-    diffs = []
+    # Constraint 2: Each nurse works exactly their specified number of days
     for n in nurses:
-        total_shifts = model.NewIntVar(nurse_work_days[n], num_days, f'total_shifts_n{n}')
-        model.Add(total_shifts == sum(shifts[(n, d)] for d in days))
-        nurse_total_shifts.append(total_shifts)
-        
-        diff = model.NewIntVar(0, num_days, f'diff_n{n}')
-        model.Add(diff == total_shifts - nurse_work_days[n])
-        diffs.append(diff)
-    
-    # Square of diffs to penalize large deviations (even though sum of diffs is constant 6)
-    sq_diffs = []
-    for n in nurses:
-        sq_diff = model.NewIntVar(0, num_days * num_days, f'sq_diff_n{n}')
-        model.AddMultiplicationEquality(sq_diff, [diffs[n], diffs[n]])
-        sq_diffs.append(sq_diff)
-
-    model.Minimize(sum(sq_diffs))
+        model.Add(sum(shifts[(n, d)] for d in days) == nurse_work_days[n])
 
     # Solve
     solver = cp_model.CpSolver()
@@ -77,7 +57,7 @@ def solve_nurse_scheduling():
             count = sum(solver.Value(shifts[(n, d)]) for n in nurses)
             print(f"Day {d+1}: {count} nurses")
     else:
-        print("No solution found.")
+        print("no solution possible")
 
 if __name__ == '__main__':
     solve_nurse_scheduling()
