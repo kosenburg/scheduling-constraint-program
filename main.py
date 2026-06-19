@@ -99,8 +99,14 @@ def get_nurse_role(s_idx, d_idx, solver, shifts, staff_range):
     return f"Room {((pos - 2) // 2) + 1}"
 
 
-def get_staff_stats(s_idx, solver, shifts, names, work_days, base_num, days):
+def get_staff_stats(s_idx, solver_data, days):
     """Extracts stats for a single staff member."""
+    solver = solver_data["solver"]
+    shifts = solver_data["shifts"]
+    names = solver_data["names"]
+    work_days = solver_data["work_days"]
+    base_num = solver_data["base_num"]
+
     is_additional = s_idx >= base_num
     st_type = "Base" if not is_additional else "Extra"
     name = names[s_idx]
@@ -113,14 +119,11 @@ def process_solver_results(solver_data):
     """Processes the results from the CP-SAT solver into DataFrames."""
     solver = solver_data["solver"]
     shifts = solver_data["shifts"]
-    names = solver_data["names"]
-    work_days = solver_data["work_days"]
-    base_num = solver_data["base_num"]
     staff_type = solver_data["staff_type"]
     required_per_day = solver_data["required_per_day"]
-    additional_count = solver_data["additional_count"]
+    base_num = solver_data["base_num"]
 
-    staff_range = range(len(names))
+    staff_range = range(len(solver_data["names"]))
     days = range(len(required_per_day))
 
     # Prepare DataFrames
@@ -130,9 +133,8 @@ def process_solver_results(solver_data):
     extra_hires_rows = []
 
     for s_idx in staff_range:
-        st_type, name, actual_days, required = get_staff_stats(
-            s_idx, solver, shifts, names, work_days, base_num, days
-        )
+        stats = get_staff_stats(s_idx, solver_data, days)
+        st_type, name, actual_days, required = stats
 
         row = [st_type, name]
         for d_idx in days:
@@ -158,11 +160,11 @@ def process_solver_results(solver_data):
         "schedule": pd.DataFrame(schedule_rows, columns=schedule_cols),
         "comparison": pd.DataFrame(comparison_rows,
                                    columns=["Staff Type", "Type", "Name",
-                                            "Required Days", "Scheduled Days"]),
+                                            "Req Days", "Sched Days"]),
         "extra_hires": pd.DataFrame(extra_hires_rows,
-                                    columns=[f"Extra {staff_type} Name", "Scheduled Days"]),
+                                    columns=[f"Ex {staff_type} Name", "Sched Days"]),
         "summary": pd.DataFrame(summary_rows, columns=["Day", "Required", "Actual"]),
-        "additional_count": additional_count
+        "additional_count": solver_data["additional_count"]
     }
 
 
