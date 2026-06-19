@@ -1,4 +1,5 @@
 # Nurse and Tech Scheduling System
+[![Python Application CI](https://github.com/kosenburg/scheduling-constraint-program/actions/workflows/python-app.yml/badge.svg)](https://github.com/kosenburg/scheduling-constraint-program/actions/workflows/python-app.yml)
 
 This project is a scheduling tool that uses constraint optimization to assign nurses and surgical technicians to shifts based on daily requirements and staff availability.
 
