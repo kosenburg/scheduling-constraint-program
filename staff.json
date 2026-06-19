@@ -1,13 +1,22 @@
-[
-    {"first_name": "Alice", "last_name": "Smith", "required_days": 3},
-    {"first_name": "Bob", "last_name": "Johnson", "required_days": 3},
-    {"first_name": "Charlie", "last_name": "Williams", "required_days": 3},
-    {"first_name": "David", "last_name": "Brown", "required_days": 3},
-    {"first_name": "Eve", "last_name": "Jones", "required_days": 3},
-    {"first_name": "Frank", "last_name": "Garcia", "required_days": 3},
-    {"first_name": "Grace", "last_name": "Miller", "required_days": 3},
-    {"first_name": "Heidi", "last_name": "Davis", "required_days": 3},
-    {"first_name": "Ivan", "last_name": "Rodriguez", "required_days": 4},
-    {"first_name": "Judy", "last_name": "Martinez", "required_days": 4},
-    {"first_name": "Karl", "last_name": "Hernandez", "required_days": 2}
-]
+{
+    "nurses": [
+        {"first_name": "Alice", "last_name": "Smith", "required_days": 3},
+        {"first_name": "Bob", "last_name": "Johnson", "required_days": 3},
+        {"first_name": "Charlie", "last_name": "Williams", "required_days": 3},
+        {"first_name": "David", "last_name": "Brown", "required_days": 3},
+        {"first_name": "Eve", "last_name": "Jones", "required_days": 3},
+        {"first_name": "Frank", "last_name": "Garcia", "required_days": 3},
+        {"first_name": "Grace", "last_name": "Miller", "required_days": 3},
+        {"first_name": "Heidi", "last_name": "Davis", "required_days": 3},
+        {"first_name": "Ivan", "last_name": "Rodriguez", "required_days": 4},
+        {"first_name": "Judy", "last_name": "Martinez", "required_days": 4},
+        {"first_name": "Karl", "last_name": "Hernandez", "required_days": 2}
+    ],
+    "techs": [
+        {"first_name": "Sam", "last_name": "Wilson", "required_days": 4},
+        {"first_name": "Tara", "last_name": "Lee", "required_days": 4},
+        {"first_name": "Umar", "last_name": "Khan", "required_days": 4},
+        {"first_name": "Vera", "last_name": "Wang", "required_days": 4},
+        {"first_name": "Will", "last_name": "Taylor", "required_days": 4}
+    ]
+}
