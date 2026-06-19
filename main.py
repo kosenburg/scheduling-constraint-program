@@ -99,6 +99,22 @@ def get_nurse_role(s_idx, d_idx, solver, shifts, staff_range):
     return f"Room {((pos - 2) // 2) + 1}"
 
 
+def get_tech_role(s_idx, d_idx, solver, shifts, staff_range, day_config):
+    """Calculates the specific role for a tech on a given day."""
+    day_staff = [i for i in staff_range if solver.Value(shifts[(i, d_idx)])]
+    pos = day_staff.index(s_idx)
+
+    num_or = day_config["num_or_rooms"]
+    num_scope = day_config["num_scope_rooms"]
+
+    if pos < num_or:
+        return f"Room {pos + 1}"
+    if pos < num_or + (num_scope * 2):
+        scope_idx = (pos - num_or) // 2
+        return f"Scope {scope_idx + 1}"
+    return "Float"
+
+
 def get_staff_stats(s_idx, solver_data, days):
     """Extracts stats for a single staff member."""
     solver = solver_data["solver"]
@@ -122,6 +138,7 @@ def process_solver_results(solver_data):
     staff_type = solver_data["staff_type"]
     required_per_day = solver_data["required_per_day"]
     base_num = solver_data["base_num"]
+    schedule_params = solver_data.get("schedule_params")
 
     staff_range = range(len(solver_data["names"]))
     days = range(len(required_per_day))
@@ -142,7 +159,11 @@ def process_solver_results(solver_data):
                 if staff_type == "Nurse":
                     row.append(get_nurse_role(s_idx, d_idx, solver, shifts, staff_range))
                 else:
-                    row.append("X")
+                    if schedule_params:
+                        day_config = schedule_params["days"][d_idx]
+                        row.append(get_tech_role(s_idx, d_idx, solver, shifts, staff_range, day_config))
+                    else:
+                        row.append("X")
             else:
                 row.append("-")
         row.append(actual_days)
@@ -168,7 +189,8 @@ def process_solver_results(solver_data):
     }
 
 
-def solve_scheduling(staff_type, required_per_day, base_staff_data, additional_count=0):
+def solve_scheduling(staff_type, required_per_day, base_staff_data, additional_count=0,
+                     schedule_params=None):
     """
     Main function to solve the scheduling problem for a given staff type.
     """
@@ -188,7 +210,8 @@ def solve_scheduling(staff_type, required_per_day, base_staff_data, additional_c
             "base_num": base_num,
             "staff_type": staff_type,
             "required_per_day": required_per_day,
-            "additional_count": additional_count
+            "additional_count": additional_count,
+            "schedule_params": schedule_params
         })
     return None
 
@@ -234,7 +257,7 @@ def main():
     nurse_results = None
     while nurse_added <= 20:
         nurse_results = solve_scheduling("Nurse", nurse_requirements, staff_data["nurses"],
-                                         nurse_added)
+                                         nurse_added, schedule_params)
         if nurse_results:
             break
         nurse_added += 1
@@ -247,7 +270,8 @@ def main():
     tech_added = 0
     tech_results = None
     while tech_added <= 20:
-        tech_results = solve_scheduling("Tech", tech_requirements, staff_data["techs"], tech_added)
+        tech_results = solve_scheduling("Tech", tech_requirements, staff_data["techs"], tech_added,
+                                         schedule_params)
         if tech_results:
             break
         tech_added += 1
