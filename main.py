@@ -1,6 +1,6 @@
 from ortools.sat.python import cp_model
-
 import pandas as pd
+import json
 
 def export_to_excel(schedule_df, comparison_df, extra_hires_df, summary_df, filename="nurse_schedule.xlsx"):
     """Exports data to a standard Excel file using pandas."""
@@ -21,24 +21,22 @@ def export_to_excel(schedule_df, comparison_df, extra_hires_df, summary_df, file
         
     print(f"Results exported to {filename}")
 
-def solve_nurse_scheduling(nurses_per_day_list, additional_nurses_count=0):
+def solve_nurse_scheduling(nurses_per_day_list, base_staff_data, additional_nurses_count=0):
     model = cp_model.CpModel()
 
     # Data
-    base_num_nurses = 11
     num_days = len(nurses_per_day_list)
     
-    # Base Nurse constraints: (number of nurses, days they work)
-    # 8 nurses work 3 days
-    # 2 nurses work 4 days
-    # 1 nurse works 2 days
-    base_nurse_work_days = [3] * 8 + [4] * 2 + [2] * 1
-    nurse_work_days = list(base_nurse_work_days)
+    # Base Nurse information
+    nurse_work_days = [staff["required_days"] for staff in base_staff_data]
+    nurse_names = [f"{staff['first_name']} {staff['last_name']}" for staff in base_staff_data]
+    base_num_nurses = len(base_staff_data)
     
     # Add additional nurses who work UP TO 4 days each
     if additional_nurses_count > 0:
         for i in range(additional_nurses_count):
             nurse_work_days.append(4)
+            nurse_names.append(f"Extra Nurse {i+1}")
     
     num_nurses = len(nurse_work_days)
     nurses = range(num_nurses)
@@ -73,7 +71,7 @@ def solve_nurse_scheduling(nurses_per_day_list, additional_nurses_count=0):
         print(f"Solution found with {additional_nurses_count} additional nurses:\n")
         
         # 1. Prepare Schedule DataFrame
-        schedule_cols = ["Nurse Type", "Nurse ID"] + [f"Day {d+1}" for d in days] + ["Total Scheduled"]
+        schedule_cols = ["Nurse Type", "Nurse Name"] + [f"Day {d+1}" for d in days] + ["Total Scheduled"]
         schedule_rows = []
         
         # 2. Prepare Comparison DataFrame
@@ -85,28 +83,28 @@ def solve_nurse_scheduling(nurses_per_day_list, additional_nurses_count=0):
         for n in nurses:
             is_additional = n >= base_num_nurses
             nurse_type = "Base" if not is_additional else "Extra"
-            nurse_id = n + 1 if not is_additional else n - base_num_nurses + 1
+            nurse_name = nurse_names[n]
             
             actual_days = sum(solver.Value(shifts[(n, d)]) for d in days)
             required_days = nurse_work_days[n] if not is_additional else f"1-4 (Max 4)"
             
             # Schedule row
-            row = [nurse_type, nurse_id]
+            row = [nurse_type, nurse_name]
             for d in days:
                 row.append("X" if solver.Value(shifts[(n, d)]) else "-")
             row.append(actual_days)
             schedule_rows.append(row)
             
             # Comparison row
-            comparison_rows.append([nurse_type, nurse_id, required_days, actual_days])
+            comparison_rows.append([nurse_type, nurse_name, required_days, actual_days])
             
             # Extra Hire row
             if is_additional:
-                extra_hires_rows.append([nurse_id, actual_days])
+                extra_hires_rows.append([nurse_name, actual_days])
 
         df_schedule = pd.DataFrame(schedule_rows, columns=schedule_cols)
-        df_comparison = pd.DataFrame(comparison_rows, columns=["Nurse Type", "Nurse ID", "Required Days", "Scheduled Days"])
-        df_extra_hires = pd.DataFrame(extra_hires_rows, columns=["Extra Nurse ID", "Scheduled Days"])
+        df_comparison = pd.DataFrame(comparison_rows, columns=["Nurse Type", "Nurse Name", "Required Days", "Scheduled Days"])
+        df_extra_hires = pd.DataFrame(extra_hires_rows, columns=["Extra Nurse Name", "Scheduled Days"])
         
         # 4. Daily Summary DataFrame
         summary_rows = []
@@ -135,11 +133,19 @@ def solve_nurse_scheduling(nurses_per_day_list, additional_nurses_count=0):
         return False
 
 if __name__ == '__main__':
+    # Load staff data from JSON
+    try:
+        with open('staff.json', 'r') as f:
+            staff_data = json.load(f)
+    except FileNotFoundError:
+        print("Error: staff.json not found.")
+        exit(1)
+
     # Example requirement: Day 1 needs 6 nurses, other 4 days need 8 nurses
     requirements = [6, 8, 8, 8, 8]
     
     added = 0
-    while not solve_nurse_scheduling(requirements, added):
+    while not solve_nurse_scheduling(requirements, staff_data, added):
         print(f"Attempt with {added} additional nurses failed...")
         added += 1
         # Safety break to avoid infinite loop if something is logically wrong
